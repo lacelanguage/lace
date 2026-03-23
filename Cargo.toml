@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = [
+    "frontend",
+    "ir",
+    "vm",
+    "cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["tayenp <kontajiousgd00@gmail.com"]
+readme = "README.md"
+repository = "https://github.com/tayenx3/lace"

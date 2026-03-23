@@ -1,0 +1,13 @@
+[package]
+name = "lace-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+lace-frontend = { path = "../frontend" }
+lace-ir = { path = "../ir" }
+lace-vm = { path = "../vm" }
+clap = "4.6.0"
