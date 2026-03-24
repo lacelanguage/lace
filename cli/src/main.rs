@@ -32,13 +32,29 @@ impl FromStr for Target {
     version,
 )]
 struct Cli {
+    #[arg(help = "The input file to compile")]
     input: String,
     
-    #[arg(short, long)]
+    #[arg(
+        short,
+        long,
+        help = "The target (bytecode/JavaScript/C)"
+    )]
     target: Option<Target>,
 
-    #[arg(short, long)]
+    #[arg(
+        short,
+        long,
+        help = "For debugging phases of compilation (tokens -> parse tree -> IR -> bytecode or JavaScript/C code)"
+    )]
     emit: Option<Vec<String>>,
+
+    #[arg(
+        short, long,
+        value_parser = clap::value_parser!(u32).range(0..=3),
+        help = "The optimization level (from 0 to 3)"
+    )]
+    opt_level: Option<u32>
 }
 
 fn main() {
