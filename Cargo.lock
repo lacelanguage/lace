@@ -149,6 +149,8 @@ name = "lace-frontend"
 version = "0.1.0"
 dependencies = [
  "lasso",
+ "strsim",
+ "tinycolor",
 ]
 
 [[package]]

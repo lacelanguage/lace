@@ -11,5 +11,5 @@ lace-frontend = { path = "../frontend" }
 lace-ir = { path = "../ir" }
 lace-vm = { path = "../vm" }
 clap = { version = "4.6.0", features = ["derive"] }
-tinycolor = "1.1.3"
 lasso.workspace = true
+tinycolor.workspace = true

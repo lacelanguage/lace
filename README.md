@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="./pictures/icon.png" width=400>
+    <img src="./images/icon.png" width=400>
     <h1>Lace</h1>
     <img src="https://img.shields.io/badge/License-Apache--2.0-blue" alt="License: Apache-2.0">
 </div>

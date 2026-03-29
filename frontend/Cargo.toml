@@ -8,3 +8,5 @@ repository.workspace = true
 
 [dependencies]
 lasso.workspace = true
+tinycolor.workspace = true
+strsim = "0.11.1"
