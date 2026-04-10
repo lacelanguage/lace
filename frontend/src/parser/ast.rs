@@ -1,5 +1,5 @@
 use super::ty::ParseType;
-use crate::span::Span;
+use lace_span::Span;
 use crate::operator::Op;
 use lasso::Spur;
 use std::sync::Arc;
@@ -7,6 +7,9 @@ use std::sync::Arc;
 // usize instead of u32 for simplicity
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NodeId(pub usize);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FuncId(pub usize);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ast(pub Arc<[RootLevelItem]>);
@@ -59,6 +62,7 @@ pub enum NodeKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDef {
+    pub id: FuncId,
     pub name: Spur,
     pub params: Vec<ParseParam>,
     pub return_ty: Option<ParseType>,

@@ -1,5 +1,5 @@
 use super::ty::Type;
-use crate::span::Span;
+use lace_span::Span;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Symbol {

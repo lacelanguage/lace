@@ -1,4 +1,4 @@
-use crate::span::Span;
+use lace_span::Span;
 use lasso::Spur;
 
 #[derive(Debug, Clone, PartialEq)]

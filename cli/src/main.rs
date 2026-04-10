@@ -1,4 +1,4 @@
-use lace_frontend::{lexer, parser, semantics_checker, utils};
+use lace_frontend::{lexer, parser, semantics_checker, ir_gen, utils};
 use clap::Parser;
 use tinycolor::Colorize;
 use lasso::Rodeo;
@@ -73,12 +73,15 @@ fn main() {
 
     let mut emit_tokens = false;
     let mut emit_ast = false;
+    let mut emit_ir = false;
     if let Some(emits) = &cli.emit {
         for emit in emits {
             if ["tokens", "toks"].contains(&&**emit) {
                 emit_tokens = true;
             } else if ["ast", "parse_tree", "parse-tree"].contains(&&**emit) {
                 emit_ast = true;
+            } else if ["ir", "intermediate-representation"].contains(&&**emit) {
+                emit_ir = true;
             }
         }
     }
@@ -130,4 +133,11 @@ fn main() {
             return;
         },
     };
+
+    let mut ir_gen = ir_gen::IRGenerator::new(0, &cli.input);
+    ir_gen.generate_ir(&ast, &schecker.type_map);
+    let ir_mod = ir_gen.module;
+    if emit_ir {
+        println!("{}", ir_mod.debug(&rodeo));
+    }
 }

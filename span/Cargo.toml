@@ -1,5 +1,5 @@
 [package]
-name = "lace-ir"
+name = "lace-span"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,6 +7,3 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
-lace-span = { path = "../span" }
-lace-vm = { path = "../vm" }
-lasso.workspace = true

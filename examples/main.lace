@@ -1,5 +1,4 @@
-fn test() -> int = {
+fn main() -> int = {
     let a = 2;
-    5 + a * (9 - b);
-    a = 1;
+    a + 4
 }

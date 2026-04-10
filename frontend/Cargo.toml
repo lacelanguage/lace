@@ -7,6 +7,9 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
+lace-ir = { path = "../ir" }
+lace-vm = { path = "../vm" }
+lace-span = { path = "../span" }
 lasso.workspace = true
 tinycolor.workspace = true
 strsim = "0.11.1"

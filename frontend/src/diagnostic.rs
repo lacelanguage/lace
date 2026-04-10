@@ -1,5 +1,5 @@
 use tinycolor::Colorize;
-use crate::span::Span;
+use lace_span::Span;
 use crate::utils;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

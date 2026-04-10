@@ -1,7 +1,7 @@
 pub mod token;
 
 use token::*;
-use crate::span::Span;
+use lace_span::Span;
 use crate::operator::Op;
 use crate::diagnostic::{Diagnostic, Severity};
 use lasso::Rodeo;

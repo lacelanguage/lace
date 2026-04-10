@@ -6,10 +6,10 @@ const CANDIDATE_SCORE_THRESHOLD: f64 = 0.7;
 
 use ty::Type;
 use symbol::*;
-use type_map::TypeMap;
+use type_map::{TypeMap, FunctionDefTypeInfo};
 use crate::parser::ast::{Ast, Node, NodeKind, RootLevelItem, RootLevelItemKind};
 use crate::parser::ty::*;
-use crate::span::Span;
+use lace_span::Span;
 use crate::operator::Op;
 use crate::diagnostic::{Diagnostic, Severity};
 use std::collections::HashMap;
@@ -156,6 +156,13 @@ impl<'a> SemanticsChecker<'a> {
                     return Err(errors);
                 }
 
+                self.type_map.assign_func(
+                    f.id,
+                    FunctionDefTypeInfo {
+                        params: param_tys.clone(),
+                        return_ty: ret.clone().unwrap(),
+                        defined_at: item.span
+                });
                 self.define_symbol(
                     false,
                     f.name,
@@ -170,16 +177,29 @@ impl<'a> SemanticsChecker<'a> {
     pub fn check_root_level_item(&mut self, item: &RootLevelItem) -> Result<(), Vec<Diagnostic>> {
         match &item.kind {
             RootLevelItemKind::FunctionDef(f) => {
-                self.check_node(&f.body)?;
-                if let Symbol { mutability: _, ty: Type::Function(_, return_ty), defined_at } = self.get_identifier(&f.name).0.unwrap() { // we should've already defined this already
-                    let body_ty = self.type_map.get_type(f.body.id).unwrap();
-                    if **return_ty != *body_ty {
-                        return Err(vec![Diagnostic::new(
-                            Severity::Error,
-                            format!("function defined with return type `{return_ty}` but returns `{body_ty}`"),
-                            *defined_at
-                        )]);
+                self.scope.push(HashMap::new());
+                let mut params = vec![];
+                {
+                    let FunctionDefTypeInfo { params: param_tys, .. } = self.type_map.get_func(f.id).unwrap();
+                    for (idx, p) in param_tys.iter().enumerate() {
+                        params.push((f.params[idx].mutability, f.params[idx].name, p.clone(), f.params[idx].span));
                     }
+                }
+                for (mutability, name, ty, defined_at) in params {
+                    self.define_symbol(mutability, name, ty, defined_at);
+                }
+                self.check_node(&f.body)?;
+                self.scope.pop();
+
+                
+                let FunctionDefTypeInfo { return_ty, defined_at, .. } = self.type_map.get_func(f.id).unwrap();
+                let body_ty = self.type_map.get_node(f.body.id).unwrap();
+                if *return_ty != *body_ty {
+                    return Err(vec![Diagnostic::new(
+                        Severity::Error,
+                        format!("function defined with return type `{return_ty}` but returns `{body_ty}`"),
+                        *defined_at
+                    )]);
                 }
             },
         };
@@ -195,7 +215,7 @@ impl<'a> SemanticsChecker<'a> {
                 let (symbol, candidate) = self.get_identifier(s);
                 if let Some(s) = symbol {
                     let ty = s.ty.clone();
-                    self.type_map.assign_type(node.id, ty.clone());
+                    self.type_map.assign_node(node.id, ty.clone());
                     return Ok(());
                 } else if let Some(c) = candidate {
                     errors.push(Diagnostic::new(
@@ -212,20 +232,20 @@ impl<'a> SemanticsChecker<'a> {
                 }
             },
             NodeKind::IntLit(_) => {
-                self.type_map.assign_type(node.id, Type::Int);
+                self.type_map.assign_node(node.id, Type::Int);
                 return Ok(());
             },
             NodeKind::FloatLit(_) => {
-                self.type_map.assign_type(node.id, Type::Float);
+                self.type_map.assign_node(node.id, Type::Float);
                 return Ok(());
             },
             NodeKind::Unit => {
-                self.type_map.assign_type(node.id, Type::Unit);
+                self.type_map.assign_node(node.id, Type::Unit);
                 return Ok(());
             },
             NodeKind::Semi(stmt) => {
                 self.check_node(stmt)?;
-                self.type_map.assign_type(node.id, Type::Unit);
+                self.type_map.assign_node(node.id, Type::Unit);
                 return Ok(());
             },
             NodeKind::Tuple(items) => {
@@ -233,7 +253,7 @@ impl<'a> SemanticsChecker<'a> {
 
                 for item in items {
                     match self.check_node(item) {
-                        Ok(_) => item_tys.push(self.type_map.get_type(item.id).unwrap().clone()),
+                        Ok(_) => item_tys.push(self.type_map.get_node(item.id).unwrap().clone()),
                         Err(err) => errors.extend(err),
                     }
                 }
@@ -242,24 +262,28 @@ impl<'a> SemanticsChecker<'a> {
                     return Err(errors);
                 }
 
-                self.type_map.assign_type(node.id, Type::Tuple(item_tys));
+                self.type_map.assign_node(node.id, Type::Tuple(item_tys));
                 return Ok(());
             },
             NodeKind::Block(stmts) => {
                 let mut last_ty = None;
 
+                self.scope.push(HashMap::new());
+
                 for stmt in stmts {
                     match self.check_node(stmt) {
-                        Ok(_) => last_ty = Some(self.type_map.get_type(stmt.id).unwrap().clone()),
+                        Ok(_) => last_ty = Some(self.type_map.get_node(stmt.id).unwrap().clone()),
                         Err(err) => errors.extend(err),
                     }
                 }
+
+                self.scope.pop();
 
                 if errors.len() > 0 {
                     return Err(errors);
                 }
 
-                self.type_map.assign_type(node.id, last_ty.unwrap_or(Type::Unit));
+                self.type_map.assign_node(node.id, last_ty.unwrap_or(Type::Unit));
 
                 return Ok(());
             },
@@ -268,7 +292,7 @@ impl<'a> SemanticsChecker<'a> {
                     if let NodeKind::Identifier(s) = &lhs.kind {
                         let name = self.rodeo.resolve(s);
                         self.check_node(rhs)?;
-                        let val_ty = self.type_map.get_type(rhs.id).unwrap().clone();
+                        let val_ty = self.type_map.get_node(rhs.id).unwrap().clone();
                         let (symbol, candidate) = self.get_identifier_mut(s);
                         if let Some(s) = symbol {
                             if s.ty != val_ty {
@@ -285,7 +309,7 @@ impl<'a> SemanticsChecker<'a> {
                                 ).with_note(format!("`{name}` was defined here:"), Some(s.defined_at))]);
                             }
 
-                            self.type_map.assign_type(node.id, Type::Unit);
+                            self.type_map.assign_node(node.id, Type::Unit);
                             return Ok(());
                         } else if let Some(c) = candidate {
                             errors.push(Diagnostic::new(
@@ -325,10 +349,10 @@ impl<'a> SemanticsChecker<'a> {
                 }
 
                 if let Some(ty) = op.0.infix_output_ty(
-                    self.type_map.get_type(lhs.id).unwrap(),
-                    self.type_map.get_type(rhs.id).unwrap()
+                    self.type_map.get_node(lhs.id).unwrap(),
+                    self.type_map.get_node(rhs.id).unwrap()
                 ) {
-                    self.type_map.assign_type(node.id, ty);
+                    self.type_map.assign_node(node.id, ty);
                     return Ok(());
                 } else {
                     errors.push(Diagnostic::new(
@@ -336,8 +360,8 @@ impl<'a> SemanticsChecker<'a> {
                         format!(
                             "cannot apply `{}` as a binary operation on types `{}` and `{}`",
                             op.0,
-                            self.type_map.get_type(lhs.id).unwrap(),
-                            self.type_map.get_type(rhs.id).unwrap()
+                            self.type_map.get_node(lhs.id).unwrap(),
+                            self.type_map.get_node(rhs.id).unwrap()
                         ),
                         node.span
                     ));
@@ -346,9 +370,9 @@ impl<'a> SemanticsChecker<'a> {
             NodeKind::UnaryOp { operand, op } => {
                 self.check_node(operand)?;
                 if let Some(ty) = op.0.prefix_output_ty(
-                    self.type_map.get_type(operand.id).unwrap()
+                    self.type_map.get_node(operand.id).unwrap()
                 ) {
-                    self.type_map.assign_type(node.id, ty);
+                    self.type_map.assign_node(node.id, ty);
                     return Ok(())
                 } else {
                     errors.push(Diagnostic::new(
@@ -356,7 +380,7 @@ impl<'a> SemanticsChecker<'a> {
                         format!(
                             "cannot apply `{}` as a unary operation on type `{}`",
                             op.0,
-                            self.type_map.get_type(operand.id).unwrap()
+                            self.type_map.get_node(operand.id).unwrap()
                         ),
                         node.span
                     ));
@@ -367,7 +391,7 @@ impl<'a> SemanticsChecker<'a> {
                 let final_ty = match ty {
                     Some(ty) => {
                         let resolved_ty = self.resolve_type(ty).map_err(|err| vec![err])?;
-                        let value_ty = self.type_map.get_type(value.id).unwrap().clone();
+                        let value_ty = self.type_map.get_node(value.id).unwrap().clone();
                         if resolved_ty != value_ty {
                             return Err(vec![Diagnostic::new(
                                 Severity::Error,
@@ -379,11 +403,13 @@ impl<'a> SemanticsChecker<'a> {
                         value_ty
                     },
                     None => {
-                        self.type_map.get_type(value.id).unwrap().clone()
+                        self.type_map.get_node(value.id).unwrap().clone()
                     }
                 };
 
                 self.define_symbol(*mutability, *name, final_ty, node.span);
+                self.type_map.assign_node(node.id, Type::Unit);
+                return Ok(());
             },
             NodeKind::FunctionDef(_f) => todo!("scoped functions")
         }

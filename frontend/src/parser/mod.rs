@@ -6,23 +6,24 @@ use ast::*;
 use ty::*;
 use pattern::*;
 use crate::lexer::token::*;
-use crate::span::Span;
+use lace_span::Span;
 use crate::operator::Op;
 use crate::diagnostic::{Diagnostic, Severity};
 use lasso::Rodeo;
 
 pub struct Parser<'a> {
     next_node_id: usize,
+    next_func_id: usize,
     token_stream: TokenStream,
     rodeo: &'a Rodeo
 }
 
 impl<'a> Parser<'a> {
     pub fn new(token_stream: TokenStream, rodeo: &'a Rodeo) -> Self {
-        Self { next_node_id: 0usize, token_stream, rodeo }
+        Self { next_node_id: 0usize, next_func_id: 0usize, token_stream, rodeo }
     }
     
-    fn new_node(&mut self, kind: NodeKind, span: Span) -> Node {
+    pub fn new_node(&mut self, kind: NodeKind, span: Span) -> Node {
         let id = NodeId(self.next_node_id);
         self.next_node_id += 1;
         Node { id, kind, span }
@@ -85,22 +86,25 @@ impl<'a> Parser<'a> {
         let body = self.parse_expression(0)?;
         whole_span.extend(body.span);
 
-        Ok((FunctionDef { name, params, return_ty, body: Box::new(body) }, whole_span))
+        let id = FuncId(self.next_func_id);
+        self.next_func_id += 1;
+        Ok((FunctionDef { id, name, params, return_ty, body: Box::new(body) }, whole_span))
     }
 
     pub fn parse_param(&mut self) -> Result<ParseParam, Diagnostic> {
-        let (mutability, mut span) = match self.token_stream.consume(TokenKind::KwMut, self.rodeo) {
+        let (mutability, mut span): (bool, Option<Span>) = match self.token_stream.consume(TokenKind::KwMut, self.rodeo) {
             Ok(tok) => (true, Some(tok.span)),
             Err(_) => (false, None)
         };
         let (name, name_span) = self.token_stream.consume_ident(self.rodeo)?;
-        if let Some(s) = &mut span {
+        if let Some(s) = span.as_mut() {
             s.extend(name_span);
         } else {
             span = Some(name_span);
         }
         self.token_stream.consume(TokenKind::Colon, self.rodeo)?;
         let ty = self.parse_type()?;
+        span.as_mut().unwrap().extend(ty.span);
         Ok(ParseParam { mutability, name, ty, span: span.unwrap() })
     }
 

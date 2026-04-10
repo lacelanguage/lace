@@ -1,4 +1,5 @@
 use std::fmt;
+use lace_ir::ty::Type as IRType;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
@@ -10,6 +11,17 @@ pub enum Type {
 impl Type {
     pub fn is_numeric(&self) -> bool {
         matches!(self, Self::Int | Self::Float)
+    }
+
+    pub fn to_ir_type(&self) -> IRType {
+        match self {
+            Self::Int => IRType::Int,
+            Self::Float => IRType::Float,
+            Self::Bool => IRType::Bool,
+            Self::Unit => IRType::Unit,
+            Self::Tuple(items) => IRType::Tuple(items.iter().map(|ty| ty.to_ir_type()).collect()),
+            Self::Function(p, r) => IRType::Function(p.iter().map(|param| param.to_ir_type()).collect(), Box::new(r.to_ir_type()))
+        }
     }
 }
 
