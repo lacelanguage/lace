@@ -1,6 +1,6 @@
 use std::fmt;
 use lasso::{Rodeo, Spur};
-use crate::function::{Function, FunctionName, Signature};
+use super::function::{Function, FunctionName, Signature};
 
 pub struct Module {
     id: usize,

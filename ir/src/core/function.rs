@@ -86,7 +86,7 @@ impl Function {
 
 impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "fn {:?}({}) -> {:?} {{\n",
+        writeln!(f, "fn {:?}({}) -> {:?} {{",
             self.name,
             self.sig.params.iter()
                 .fold(
@@ -100,8 +100,8 @@ impl fmt::Debug for Function {
             self.sig.return_ty
         )?;
 
-        write!(f, 
-            ".CONSTANTS: [{}]\n",
+        writeln!(f, 
+            ".CONSTANTS: [{}]",
             self.constants.iter()
                 .fold(String::new(),
                     |acc, c| if acc.is_empty() {
@@ -113,7 +113,7 @@ impl fmt::Debug for Function {
         )?;
 
         for block in &self.blocks {
-            write!(f, "{block:?}\n")?;
+            writeln!(f, "{block:?}")?;
         }
 
         write!(f, "}}")
@@ -123,9 +123,9 @@ impl fmt::Debug for Function {
 #[cfg(test)]
 pub mod tests {
     use lace_span::Span;
-    use crate::function::{Function, Signature};
-    use crate::inst::*;
-    use crate::ty::Type;
+    use super::{Function, Signature};
+    use super::super::inst::*;
+    use super::super::ty::Type;
 
     #[test]
     fn format_test() {

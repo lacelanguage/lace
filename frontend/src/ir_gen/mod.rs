@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use lace_ir::module::Module;
-use lace_ir::function::{FunctionName, Signature};
-use lace_ir::inst::{IrValue, Register, ValueId};
+use lace_ir::core::module::Module;
+use lace_ir::core::function::{FunctionName, Signature};
+use lace_ir::core::inst::{IrValue, Register, ValueId};
 use lasso::Spur;
 use crate::operator::Op;
 use crate::parser::ast::{Ast, FuncId, Node, NodeKind, RootLevelItem, RootLevelItemKind};
@@ -57,7 +57,7 @@ impl IRGenerator {
         match &item.kind {
             RootLevelItemKind::FunctionDef(f) => {
                 self.scope.push(HashMap::new());
-                let fname = self.functions.get(&f.id).unwrap().clone();
+                let fname = *self.functions.get(&f.id).unwrap();
                 {
                     let f = self.module.get_function(&fname).unwrap();
                     let entry_block = f.create_block();

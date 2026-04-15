@@ -152,7 +152,7 @@ impl<'a> SemanticsChecker<'a> {
                     Some(Type::Unit)
                 };
 
-                if errors.len() > 0 {
+                if !errors.is_empty() {
                     return Err(errors);
                 }
 
@@ -258,7 +258,7 @@ impl<'a> SemanticsChecker<'a> {
                     }
                 }
 
-                if errors.len() > 0 {
+                if !errors.is_empty() {
                     return Err(errors);
                 }
 
@@ -279,7 +279,7 @@ impl<'a> SemanticsChecker<'a> {
 
                 self.scope.pop();
 
-                if errors.len() > 0 {
+                if !errors.is_empty() {
                     return Err(errors);
                 }
 
@@ -332,7 +332,7 @@ impl<'a> SemanticsChecker<'a> {
                         ));
                     }
 
-                    if errors.len() > 0 {
+                    if !errors.is_empty() {
                         return Err(errors);
                     }
                 }
@@ -344,7 +344,7 @@ impl<'a> SemanticsChecker<'a> {
                     errors.extend(err);
                 }
 
-                if errors.len() > 0 {
+                if !errors.is_empty() {
                     return Err(errors);
                 }
 

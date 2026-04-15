@@ -233,7 +233,7 @@ pub fn tokenize(source: &str, rodeo: &mut Rodeo) -> Result<TokenStream, Diagnost
 
                 while let Some(&(pos, ch)) = chars.peek() {
                     match ch {
-                        ch if ch.is_alphabetic() || ch == '_' || ('0'..='9').contains(&ch) => chars.next(),
+                        ch if ch.is_alphabetic() || ch == '_' || ch.is_ascii_digit() => chars.next(),
                         _ => break,
                     };
 

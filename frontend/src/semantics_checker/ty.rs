@@ -1,5 +1,5 @@
 use std::fmt;
-use lace_ir::ty::Type as IRType;
+use lace_ir::core::ty::Type as IRType;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {

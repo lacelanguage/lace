@@ -55,7 +55,7 @@ impl<'a> Parser<'a> {
             )),
             None => Err(Diagnostic::new(
                 Severity::Error,
-                format!("expected root-level item, found end of input"),
+                "expected root-level item, found end of input",
                 self.token_stream.get_last_span(),
             ))
         }
@@ -253,7 +253,7 @@ impl<'a> Parser<'a> {
                 is_tuple = true;
                 items.push(item);
             } else {
-                if items.len() == 0 {
+                if items.is_empty() {
                     item.span.start -= '('.len_utf8();
                     item.span.end += ')'.len_utf8();
                 }
@@ -268,7 +268,7 @@ impl<'a> Parser<'a> {
         Ok(self.new_node(
             if is_tuple {
                 NodeKind::Tuple(items)
-            } else if items.len() == 0 {
+            } else if items.is_empty() {
                 NodeKind::Unit
             } else {
                 return Ok(items[0].clone());
