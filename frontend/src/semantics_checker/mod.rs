@@ -407,8 +407,8 @@ impl<'a> SemanticsChecker<'a> {
                     }
                 };
 
-                self.define_symbol(*mutability, *name, final_ty, node.span);
-                self.type_map.assign_node(node.id, Type::Unit);
+                self.define_symbol(*mutability, *name, final_ty.clone(), node.span);
+                self.type_map.assign_node(node.id, final_ty);
                 return Ok(());
             },
             NodeKind::FunctionDef(_f) => todo!("scoped functions")

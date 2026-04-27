@@ -5,6 +5,7 @@ members = [
     "ir",
     "vm",
     "cli",
+    "vm_cli"
 ]
 
 [workspace.package]

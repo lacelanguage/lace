@@ -1,5 +1,3 @@
-use std::fmt;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ValueError {
     Overflow,
@@ -121,14 +119,5 @@ impl Value {
         Ok(Self(
             (f64::from_bits(self.0).powf(f64::from_bits(other.0))).to_bits(),
         ))
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ConstantId(pub usize);
-
-impl fmt::Debug for ConstantId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "${}", self.0)
     }
 }

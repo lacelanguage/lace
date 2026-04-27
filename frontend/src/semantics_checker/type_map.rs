@@ -3,6 +3,7 @@ use super::ty::Type;
 use crate::parser::ast::{NodeId, FuncId};
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDefTypeInfo {
     pub params: Vec<Type>,
     pub return_ty: Type,

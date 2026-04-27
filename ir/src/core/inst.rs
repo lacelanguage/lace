@@ -1,7 +1,17 @@
 use std::fmt;
+use super::ss::SlotId;
 use super::function::Function;
 use lace_span::Span;
-use lace_vm::value::ConstantId;
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ConstantId(pub usize);
+
+impl fmt::Debug for ConstantId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "c{}", self.0)
+    }
+}
+
 
 #[derive(Clone, PartialEq)]
 pub enum IrValue {
@@ -48,6 +58,7 @@ impl fmt::Debug for Register {
 pub enum ValueId {
     Register(Register),
     Constant(ConstantId),
+    StackSlot(SlotId),
 }
 
 impl fmt::Debug for ValueId {
@@ -55,6 +66,7 @@ impl fmt::Debug for ValueId {
         match self {
             Self::Register(r) => r.fmt(f),
             Self::Constant(c) => c.fmt(f),
+            Self::StackSlot(s) => s.fmt(f),
         }
     }
 }
@@ -75,6 +87,7 @@ pub enum InstKind {
     FRem(Register, ValueId, ValueId),
     FPow(Register, ValueId, ValueId),
     MakeTuple(Register, Vec<ValueId>),
+    StoreSS(SlotId, ValueId),
     Ret(ValueId),
 }
 
@@ -82,18 +95,18 @@ impl fmt::Debug for InstKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Mov(r, c) => write!(f, "{r:?} = {c:?}"),
-            Self::IAdd(d, s1, s2) => write!(f, "{d:?} = i.add {s1:?}, {s2:?}"),
-            Self::ISub(d, s1, s2) => write!(f, "{d:?} = i.sub {s1:?}, {s2:?}"),
-            Self::IMul(d, s1, s2) => write!(f, "{d:?} = i.mul {s1:?}, {s2:?}"),
-            Self::IDiv(d, s1, s2) => write!(f, "{d:?} = i.div {s1:?}, {s2:?}"),
-            Self::IRem(d, s1, s2) => write!(f, "{d:?} = i.rem {s1:?}, {s2:?}"),
-            Self::IPow(d, s1, s2) => write!(f, "{d:?} = i.pow {s1:?}, {s2:?}"),
-            Self::FAdd(d, s1, s2) => write!(f, "{d:?} = f.add {s1:?}, {s2:?}"),
-            Self::FSub(d, s1, s2) => write!(f, "{d:?} = f.sub {s1:?}, {s2:?}"),
-            Self::FMul(d, s1, s2) => write!(f, "{d:?} = f.mul {s1:?}, {s2:?}"),
-            Self::FDiv(d, s1, s2) => write!(f, "{d:?} = f.div {s1:?}, {s2:?}"),
-            Self::FRem(d, s1, s2) => write!(f, "{d:?} = f.rem {s1:?}, {s2:?}"),
-            Self::FPow(d, s1, s2) => write!(f, "{d:?} = f.pow {s1:?}, {s2:?}"),
+            Self::IAdd(d, s1, s2) => write!(f, "{d:?} = iadd {s1:?}, {s2:?}"),
+            Self::ISub(d, s1, s2) => write!(f, "{d:?} = isub {s1:?}, {s2:?}"),
+            Self::IMul(d, s1, s2) => write!(f, "{d:?} = imul {s1:?}, {s2:?}"),
+            Self::IDiv(d, s1, s2) => write!(f, "{d:?} = idiv {s1:?}, {s2:?}"),
+            Self::IRem(d, s1, s2) => write!(f, "{d:?} = irem {s1:?}, {s2:?}"),
+            Self::IPow(d, s1, s2) => write!(f, "{d:?} = ipow {s1:?}, {s2:?}"),
+            Self::FAdd(d, s1, s2) => write!(f, "{d:?} = fadd {s1:?}, {s2:?}"),
+            Self::FSub(d, s1, s2) => write!(f, "{d:?} = fsub {s1:?}, {s2:?}"),
+            Self::FMul(d, s1, s2) => write!(f, "{d:?} = fmul {s1:?}, {s2:?}"),
+            Self::FDiv(d, s1, s2) => write!(f, "{d:?} = fdiv {s1:?}, {s2:?}"),
+            Self::FRem(d, s1, s2) => write!(f, "{d:?} = frem {s1:?}, {s2:?}"),
+            Self::FPow(d, s1, s2) => write!(f, "{d:?} = fpow {s1:?}, {s2:?}"),
             Self::MakeTuple(d, srcs) => write!(
                 f, "{d:?} = make_tuple({})",
                 srcs.iter()
@@ -106,6 +119,7 @@ impl fmt::Debug for InstKind {
                         }
                     )
             ),
+            Self::StoreSS(ss, src) => write!(f, "store_ss {ss:?} {src:?}"),
             Self::Ret(r) => write!(f, "ret {r:?}"),
         }
     }
@@ -268,6 +282,14 @@ impl<'a> InstBuilder<'a> {
             let reg = self.f.allocate_register();
             self.f.blocks[block.0].insts.push(Inst { kind: InstKind::MakeTuple(reg, srcs), span: self.span });
             reg
+        } else {
+            panic!("No block selected");
+        }
+    }
+
+    pub fn store_ss(self, ss: SlotId, src: ValueId) {
+        if let Some(block) = self.f.current_block {
+            self.f.blocks[block.0].insts.push(Inst { kind: InstKind::StoreSS(ss, src), span: self.span });
         } else {
             panic!("No block selected");
         }

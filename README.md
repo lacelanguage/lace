@@ -29,8 +29,9 @@ cargo install laceup
 laceup install --default-toolchain
 
 # Verify installation
-lacec --help
-knot --help
+lacec --version
+knot --version
+lacerun --version
 ```
 to install the Lace Language Toolchain
 

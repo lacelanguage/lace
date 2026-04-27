@@ -63,8 +63,10 @@ impl<'a> Parser<'a> {
 
     pub fn parse_statement(&mut self) -> Result<Node, Diagnostic> {
         let mut node = self.parse_expression(0)?;
-        if self.token_stream.consume(TokenKind::Semicolon, self.rodeo).is_ok() {
-            node.kind = NodeKind::Semi(Box::new(node.clone()));
+        if let Ok(tok) = self.token_stream.consume(TokenKind::Semicolon, self.rodeo) {
+            let mut s = node.span;
+            s.extend(tok.span);
+            node = self.new_node(NodeKind::Semi(Box::new(node.clone())), s);
         }
 
         Ok(node)

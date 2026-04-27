@@ -1,17 +1,29 @@
 use std::fmt;
+use super::ss::{StackSlot, SlotId};
 use super::basic_block::{Block, BlockId};
 use super::inst::*;
 use super::ty::Type;
 use lace_span::Span;
-use lace_vm::value::ConstantId;
 use lasso::Spur;
 
+#[derive(Clone, PartialEq)]
+pub struct Constant {
+    pub inner: IrValue,
+    pub id: ConstantId,
+}
+
+impl fmt::Debug for Constant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}: {:?}", self.id, self.inner)
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FunctionName(pub usize, pub usize, pub Spur);
+pub struct FunctionName(pub usize, pub usize, pub usize);
 
 impl fmt::Debug for FunctionName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}:{}", self.0, self.1, self.2.into_inner())
+        write!(f, "{}:{}:{}", self.0, self.1, self.2)
     }
 }
 
@@ -23,23 +35,41 @@ pub struct Signature {
 
 #[derive(Clone, PartialEq)]
 pub struct Function {
-    pub constants: Vec<IrValue>,
+    pub constants: Vec<Constant>,
+    pub spur: Spur,
     pub name: FunctionName,
     pub sig: Signature,
     pub blocks: Vec<Block>,
     pub current_block: Option<BlockId>,
     pub next_value_id: usize,
+    pub stack_slots: Vec<StackSlot>
 }
 
 impl Function {
-    pub fn new(name: Spur, namespace: usize, scope: usize, sig: Signature) -> Self {
+    pub fn new(name: Spur, id: usize, namespace: usize, scope: usize, sig: Signature) -> Self {
         let next_value_id = sig.params.len();
         Self {
             constants: vec![],
-            name: FunctionName(namespace, scope, name), sig,
+            spur: name,
+            name: FunctionName(namespace, scope, id), sig,
             blocks: vec![], current_block: None,
-            next_value_id
+            next_value_id,
+            stack_slots: vec![]
         }
+    }
+
+    pub fn get_block_param(&self, idx: usize) -> Register {
+        if let Some(block) = self.current_block {
+            self.blocks[block.0].params[idx].0
+        } else {
+            panic!("No block selected");
+        }
+    }
+
+    pub fn create_stack_slot(&mut self, slot_ty: Type) -> SlotId {
+        let id = SlotId(self.stack_slots.len());
+        self.stack_slots.push(StackSlot { id, slot_ty });
+        id
     }
 
     pub fn allocate_register(&mut self) -> Register {
@@ -49,21 +79,45 @@ impl Function {
     }
 
     pub fn define_constant(&mut self, v: IrValue) -> ConstantId {
-        if let Some(v) = self.constants.iter().position(|c| *c == v) {
-            return ConstantId(v);
+        if let Some(i) = self.constants.iter().find(|c| c.inner == v) {
+            return i.id;
         }
 
         let id = ConstantId(self.constants.len());
-        self.constants.push(v);
+        self.constants.push(Constant { inner: v, id });
         id
     }
 
     pub fn create_block(&mut self) -> BlockId {
         let id = BlockId(self.blocks.len());
 
-        self.blocks.push(Block { id, insts: vec![] });
+        self.blocks.push(Block { id, params: vec![], insts: vec![] });
 
         id
+    }
+
+    pub fn append_function_params_for_block_params(&mut self) {
+        if let Some(block) = self.current_block {
+            let mut params = vec![];
+            for (_, ty) in &self.sig.params {
+                let reg = Register(self.next_value_id);
+                self.next_value_id += 1;
+                params.push((reg, ty.clone()));
+            }
+            self.blocks[block.0].params = params;
+        } else {
+            panic!("No block selected");
+        }
+    }
+
+    pub fn append_block_params(&mut self, params: Vec<Type>) {
+        if let Some(block) = self.current_block {
+            self.blocks[block.0].params = params.into_iter().map(|ty| {
+                (self.allocate_register(), ty)
+            }).collect();
+        } else {
+            panic!("No block selected");
+        }
     }
 
     pub fn switch_to_block(&mut self, id: BlockId) {
@@ -74,10 +128,26 @@ impl Function {
         InstBuilder::new(self, span)
     }
 
+    pub fn debug_sig(&self) -> String {
+        format!("fn {:?}({}) -> {:?}",
+            self.name,
+            self.sig.params.iter()
+                .fold(
+                    String::new(),
+                    |acc, (p, ty)| if acc.is_empty() {
+                        format!("{p:?}: {ty:?}")
+                    } else {
+                        format!("{acc}, {p:?}: {ty:?}")
+                    }
+                ),
+            self.sig.return_ty
+        )
+    }
+
     pub fn debug(&self, rodeo: &lasso::Rodeo) -> String {
         let mut output = String::new();
 
-        output.push_str(&format!("@fn_name({})\n", rodeo.resolve(&self.name.2)));
+        output.push_str(&format!("@fn_name({})\n", rodeo.resolve(&self.spur)));
         output.push_str(&format!("{self:?}"));
 
         output
@@ -100,17 +170,33 @@ impl fmt::Debug for Function {
             self.sig.return_ty
         )?;
 
-        writeln!(f, 
-            ".CONSTANTS: [{}]",
-            self.constants.iter()
-                .fold(String::new(),
-                    |acc, c| if acc.is_empty() {
-                        format!("{:?}", c)
-                    } else {
-                        format!("{acc}, {:?}", c)
-                    }
-                )
-        )?;
+        if !self.constants.is_empty() {
+            writeln!(f, 
+                ".CONSTANTS: [{}]",
+                self.constants.iter()
+                    .fold(String::new(),
+                        |acc, c| if acc.is_empty() {
+                            format!("{:?}", c)
+                        } else {
+                            format!("{acc}, {:?}", c)
+                        }
+                    )
+            )?;
+        }
+
+        if !self.stack_slots.is_empty() {
+            writeln!(f, 
+                ".STACK_SLOTS: [{}]",
+                self.stack_slots.iter()
+                    .fold(String::new(),
+                        |acc, ss| if acc.is_empty() {
+                            format!("{:?}", ss)
+                        } else {
+                            format!("{acc}, {:?}", ss)
+                        }
+                    )
+            )?;
+        }
 
         for block in &self.blocks {
             writeln!(f, "{block:?}")?;
@@ -136,7 +222,7 @@ pub mod tests {
             return_ty: Type::Int,
         };
 
-        let mut function = Function::new(rodeo.get_or_intern("add"), 0, 0, sig);
+        let mut function = Function::new(rodeo.get_or_intern("add"), 0, 0, 0, sig);
         let entry = function.create_block();
         function.switch_to_block(entry);
         function.ib(Span::empty()).iadd(ValueId::Register(Register(0)), ValueId::Register(Register(1)));

@@ -1,5 +1,6 @@
 use lace_frontend::{lexer, parser, semantics_checker, ir_gen, utils};
 use clap::Parser;
+use lace_ir::opts::Optimization;
 use tinycolor::Colorize;
 use lasso::Rodeo;
 use std::fs;
@@ -136,7 +137,10 @@ fn main() {
 
     let mut ir_gen = ir_gen::IRGenerator::new(0, &cli.input);
     ir_gen.generate_ir(&ast, &schecker.type_map);
-    let ir_mod = ir_gen.module;
+    let mut ir_mod = ir_gen.module;
+    for mut opt in lace_ir::opts::OptimizationHandler::get_opts(cli.opt_level.unwrap_or(1)) {
+        opt.apply(&mut ir_mod);
+    }
     if emit_ir {
         println!("{}", ir_mod.debug(&rodeo));
     }

@@ -2,16 +2,23 @@ use std::collections::HashMap;
 use lace_ir::core::module::Module;
 use lace_ir::core::function::{FunctionName, Signature};
 use lace_ir::core::inst::{IrValue, Register, ValueId};
+use lace_ir::core::ss::SlotId;
 use lasso::Spur;
 use crate::operator::Op;
 use crate::parser::ast::{Ast, FuncId, Node, NodeKind, RootLevelItem, RootLevelItemKind};
 use crate::semantics_checker::ty::Type;
 use crate::semantics_checker::type_map::{FunctionDefTypeInfo, TypeMap};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Symbol {
+    Variable(SlotId),
+    Arg(Register),
+}
+
 pub struct IRGenerator {
     pub module: Module,
     pub functions: HashMap<FuncId, FunctionName>,
-    pub scope: Vec<HashMap<Spur, Register>>,
+    pub scope: Vec<HashMap<Spur, Symbol>>,
 }
 
 impl IRGenerator {
@@ -59,12 +66,22 @@ impl IRGenerator {
                 self.scope.push(HashMap::new());
                 let fname = *self.functions.get(&f.id).unwrap();
                 {
-                    let f = self.module.get_function(&fname).unwrap();
-                    let entry_block = f.create_block();
-                    f.switch_to_block(entry_block);
+                    let func = self.module.get_function(&fname).unwrap();
+                    let entry_block = func.create_block();
+                    func.switch_to_block(entry_block);
+                    func.append_function_params_for_block_params();
+                    for (idx, (p_ty, p)) in type_map.get_func(f.id).unwrap().params.iter().zip(f.params.iter()).enumerate() {
+                        if !p.mutability {
+                            self.scope.last_mut().unwrap().insert(p.name, Symbol::Arg(func.get_block_param(idx)));
+                            continue;
+                        }
+                        let ss = func.create_stack_slot(p_ty.to_ir_type());
+                        self.scope.last_mut().unwrap().insert(p.name, Symbol::Variable(ss));
+                    }
                 }
                 
                 let val = self.walk_node(&f.body, type_map, &fname);
+                self.scope.pop();
 
                 self.module.get_function(&fname).unwrap().ib(f.body.span).ret(val);
             }
@@ -73,7 +90,10 @@ impl IRGenerator {
 
     pub fn walk_node(&mut self, node: &Node, type_map: &TypeMap, func: &FunctionName) -> ValueId {
         match &node.kind {
-            NodeKind::Identifier(n) => ValueId::Register(*self.scope.last().unwrap().get(n).unwrap()),
+            NodeKind::Identifier(n) => match *self.scope.last().unwrap().get(n).unwrap() {
+                Symbol::Variable(s) => ValueId::StackSlot(s),
+                Symbol::Arg(r) => ValueId::Register(r)
+            },
             NodeKind::IntLit(n) => ValueId::Constant(self.module.get_function(func).unwrap().define_constant(IrValue::Int(*n))),
             NodeKind::FloatLit(n) => ValueId::Constant(self.module.get_function(func).unwrap().define_constant(IrValue::Float(*n))),
             NodeKind::Unit => ValueId::Constant(self.module.get_function(func).unwrap().define_constant(IrValue::Unit)),
@@ -103,16 +123,13 @@ impl IRGenerator {
             },
             NodeKind::BinaryOp { lhs, rhs, op } => {
                 if op.0 == Op::Assign {
-                    if let NodeKind::Identifier(n) = lhs.kind {
+                    if let NodeKind::Identifier(n) = &lhs.kind {
                         let val = self.walk_node(rhs, type_map, func);
-                        let new_r = self.module.get_function(func).unwrap().ib(node.span).mov(val);
-                        for s in self.scope.iter_mut().rev() {
-                            if let Some(r) = s.get_mut(&n) {
-                                *r = new_r;
-                                break;
-                            }
+                        match *self.scope.last().unwrap().get(n).unwrap() {
+                            Symbol::Variable(r) => self.module.get_function(func).unwrap().ib(node.span).store_ss(r, val),
+                            _ => unreachable!()
                         }
-                        return ValueId::Constant(self.module.get_function(func).unwrap().define_constant(IrValue::Unit));
+                        return val;
                     }
                 }
 
@@ -179,9 +196,10 @@ impl IRGenerator {
             NodeKind::Let { mutability: _, name, ty: _, value } => {
                 let r = self.walk_node(value, type_map, func);
                 let f = self.module.get_function(func).unwrap();
-                let reg = f.ib(node.span).mov(r);
-                self.scope.last_mut().unwrap().insert(*name, reg);
-                ValueId::Constant(f.define_constant(IrValue::Unit))
+                let ss = f.create_stack_slot(type_map.get_node(node.id).unwrap().to_ir_type());
+                f.ib(node.span).store_ss(ss, r);
+                self.scope.last_mut().unwrap().insert(*name, Symbol::Variable(ss));
+                r
             },
             NodeKind::FunctionDef(_f) => todo!()
         }

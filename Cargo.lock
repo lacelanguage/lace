@@ -180,7 +180,15 @@ dependencies = [
  "clap",
  "lace-frontend",
  "lace-ir",
- "lace-vm",
+ "lasso",
+ "tinycolor",
+]
+
+[[package]]
+name = "lacerun"
+version = "0.1.0"
+dependencies = [
+ "clap",
  "lasso",
  "tinycolor",
 ]

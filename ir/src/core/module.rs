@@ -3,9 +3,9 @@ use lasso::{Rodeo, Spur};
 use super::function::{Function, FunctionName, Signature};
 
 pub struct Module {
-    id: usize,
-    name: String,
-    functions: Vec<Function>
+    pub id: usize,
+    pub name: String,
+    pub functions: Vec<Function>
 }
 
 impl Module {
@@ -18,7 +18,7 @@ impl Module {
     }
 
     pub fn define_function(&mut self, scope: usize, name: Spur, sig: Signature) -> FunctionName {
-        self.functions.push(Function::new(name, self.id, scope, sig));
+        self.functions.push(Function::new(name, self.functions.len(), self.id, scope, sig));
         self.functions.last().unwrap().name
     }
 
@@ -29,11 +29,19 @@ impl Module {
     pub fn debug(&self, rodeo: &Rodeo) -> String {
         let mut output = String::new();
 
-        output.push_str(&format!("@module_name({})\n\n", self.name));
+        output.push_str(&format!("@module_name({})\n@module_export(\n\t", self.name));
+
+        for (idx, func) in self.functions.iter().enumerate() {
+            if idx > 0 {
+                output.push_str(",\n\t");
+            }
+            output.push_str(&func.debug_sig());
+        }
+        output.push_str("\n)");
 
         for func in &self.functions {
-            output.push_str(&func.debug(rodeo));
             output.push_str("\n\n");
+            output.push_str(&func.debug(rodeo));
         }
 
         output
@@ -42,10 +50,18 @@ impl Module {
 
 impl fmt::Debug for Module {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "@module_name({})\n\n", self.name)?;
+        write!(f, "@module_name({})\n@module_export(", self.name)?;
+
+        for (idx, func) in self.functions.iter().enumerate() {
+            if idx > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", func.debug_sig())?;
+        }
+        write!(f, ")")?;
 
         for func in &self.functions {
-            write!(f, "{func:?}\n\n")?;
+            write!(f, "\n\n{func:?}")?;
         }
 
         Ok(())
