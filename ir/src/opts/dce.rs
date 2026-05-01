@@ -37,6 +37,8 @@ impl Optimization for DeadCodeElimination {
             self.used_registers.clear();
             self.used_blocks.clear();
             self.used_constants.clear();
+            self.defined_stack_slots.clear();
+            self.used_stack_slots.clear();
         }
     }
 }
@@ -45,28 +47,43 @@ impl DeadCodeElimination {
     fn apply_func(&mut self, func: &mut Function) {
         if func.blocks.len() < 1 { return }
 
+        let mut insts = func.blocks.clone()
+            .into_iter()
+            .map(|b| b.insts.into_iter().map(|i| Some(i)).collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+        let mut removed_blocks = vec![];
+
         for (idx, block) in func.blocks.iter_mut().enumerate() {
             self.apply_block(block, idx);
         }
 
         for (reg, (block, inst)) in &self.defined_registers {
             if self.used_registers.get(&reg).is_none() {
-                func.blocks.get_mut(*block).unwrap().insts.remove(*inst);
+                insts[*block][*inst] = None;
             }
         }
 
-        func.stack_slots.retain(|ss| self.used_stack_slots.get(&ss.id).is_some());
         for (ss, (block, inst)) in &self.defined_stack_slots {
             if self.used_stack_slots.get(&ss).is_none() {
-                func.blocks.get_mut(*block).unwrap().insts.remove(*inst);
+                insts[*block][*inst] = None;
             }
         }
+        func.stack_slots.retain(|ss| self.used_stack_slots.get(&ss.id).is_some());
 
         for block in 1..func.blocks.len() {
             if self.used_blocks.get(&BlockId(block)).is_none() {
-                func.blocks.remove(block);
+                removed_blocks.push(BlockId(block));
             }
         }
+
+        for (idx, block_insts) in insts.into_iter().enumerate() {
+            func.blocks[idx].insts = block_insts.into_iter()
+                .filter(|i| i.is_some())
+                .map(|i| i.unwrap())
+                .collect();
+        }
+
+        func.blocks.retain(|b| !removed_blocks.contains(&b.id));
 
         self.used_constants.clear();
 

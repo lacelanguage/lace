@@ -1,4 +1,5 @@
 pub mod dce;
+pub mod constant_fold;
 
 use crate::core::module::Module;
 
@@ -10,13 +11,14 @@ pub trait Optimization {
 pub struct OptimizationHandler;
 
 impl OptimizationHandler {
-    pub fn get_opts(level: u32) -> Vec<impl Optimization> {
-        let mut opts = vec![];
-
-        if level >= 1 {
-            opts.push(dce::DeadCodeElimination::new());
+    pub fn get_opts(level: u32) -> Vec<Box<dyn Optimization>> {
+        match level {
+            1 => vec![Box::new(dce::DeadCodeElimination::new())],
+            2 => vec![
+                Box::new(constant_fold::ConstantFolder::new()),
+                Box::new(dce::DeadCodeElimination::new())
+            ],
+            _ => vec![]
         }
-        
-        opts
     }
 }

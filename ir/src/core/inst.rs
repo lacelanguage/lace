@@ -119,7 +119,7 @@ impl fmt::Debug for InstKind {
                         }
                     )
             ),
-            Self::StoreSS(ss, src) => write!(f, "store_ss {ss:?} {src:?}"),
+            Self::StoreSS(ss, src) => write!(f, "store_ss {ss:?}, {src:?}"),
             Self::Ret(r) => write!(f, "ret {r:?}"),
         }
     }

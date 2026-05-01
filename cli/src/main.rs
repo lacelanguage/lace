@@ -1,6 +1,5 @@
 use lace_frontend::{lexer, parser, semantics_checker, ir_gen, utils};
 use clap::Parser;
-use lace_ir::opts::Optimization;
 use tinycolor::Colorize;
 use lasso::Rodeo;
 use std::fs;
@@ -81,7 +80,7 @@ fn main() {
                 emit_tokens = true;
             } else if ["ast", "parse_tree", "parse-tree"].contains(&&**emit) {
                 emit_ast = true;
-            } else if ["ir", "intermediate-representation"].contains(&&**emit) {
+            } else if ["ir", "intermediate_representation", "intermediate-representation"].contains(&&**emit) {
                 emit_ir = true;
             }
         }
