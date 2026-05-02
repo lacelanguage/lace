@@ -1,7 +1,9 @@
-fn main() -> int = {
+fn main() = {
     let a = 2;
     let b = 10;
-    a + 4
-}
+    let c = a + 4;
+    let d = b + 4;
 
-fn add(a: int, b: int) -> int = a + b
+    let conditional = if a < b then c else d;
+    let _ = conditional;
+}

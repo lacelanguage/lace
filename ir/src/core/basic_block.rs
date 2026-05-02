@@ -9,12 +9,18 @@ pub struct Block {
     pub insts: Vec<Inst>
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BlockId(pub usize);
+
+impl fmt::Debug for BlockId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, ".BB{}", self.0)
+    }
+}
 
 impl fmt::Debug for Block {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, ".BB{}({}):{}", self.id.0,
+        write!(f, "{:?}({}):{}", self.id,
             self.params.iter()
                 .fold(
                     String::new(),

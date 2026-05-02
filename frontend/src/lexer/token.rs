@@ -13,7 +13,7 @@ pub enum TokenKind {
     Colon, Comma, Arrow, Semicolon,
     LParen, RParen,
     LCurly, RCurly,
-    KwLet, KwMut, KwFn,
+    KwLet, KwMut, KwFn, KwIf, KwThen, KwElse
 }
 
 impl TokenKind {
@@ -34,6 +34,9 @@ impl TokenKind {
             Self::KwLet => "let".to_string(),
             Self::KwMut => "mut".to_string(),
             Self::KwFn => "fn".to_string(),
+            Self::KwIf => "if".to_string(),
+            Self::KwThen => "then".to_string(),
+            Self::KwElse => "else".to_string(),
         }
     }
 }

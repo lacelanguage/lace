@@ -24,6 +24,7 @@ impl TypeMap {
     }
     
     pub fn assign_node(&mut self, id: NodeId, ty: Type) {
+        debug_assert!(!self.nodes.contains_key(&id));
         self.nodes.insert(id, ty);
     }
 
@@ -32,6 +33,7 @@ impl TypeMap {
     }
     
     pub fn assign_func(&mut self, id: FuncId, ty: FunctionDefTypeInfo) {
+        debug_assert!(!self.funcs.contains_key(&id));
         self.funcs.insert(id, ty);
     }
 

@@ -1,6 +1,7 @@
 use std::fmt;
 use super::ss::SlotId;
 use super::function::Function;
+use super::basic_block::BlockId;
 use lace_span::Span;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -71,6 +72,23 @@ impl fmt::Debug for ValueId {
     }
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum CmpFlag {
+    Eq, Ne, Gt, Lt, Ge, Le,
+}
+impl fmt::Debug for CmpFlag {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Eq => write!(f, "eq"),
+            Self::Ne => write!(f, "ne"),
+            Self::Gt => write!(f, "gt"),
+            Self::Lt => write!(f, "lt"),
+            Self::Ge => write!(f, "ge"),
+            Self::Le => write!(f, "le"),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq)]
 pub enum InstKind {
     Mov(Register, ValueId),
@@ -86,6 +104,10 @@ pub enum InstKind {
     FDiv(Register, ValueId, ValueId),
     FRem(Register, ValueId, ValueId),
     FPow(Register, ValueId, ValueId),
+    ICmp(CmpFlag, Register, ValueId, ValueId),
+    FCmp(CmpFlag, Register, ValueId, ValueId),
+    Jmp(BlockId, Vec<ValueId>),
+    Brif(ValueId, BlockId, Vec<ValueId>, BlockId, Vec<ValueId>),
     MakeTuple(Register, Vec<ValueId>),
     StoreSS(SlotId, ValueId),
     Ret(ValueId),
@@ -107,6 +129,31 @@ impl fmt::Debug for InstKind {
             Self::FDiv(d, s1, s2) => write!(f, "{d:?} = fdiv {s1:?}, {s2:?}"),
             Self::FRem(d, s1, s2) => write!(f, "{d:?} = frem {s1:?}, {s2:?}"),
             Self::FPow(d, s1, s2) => write!(f, "{d:?} = fpow {s1:?}, {s2:?}"),
+            Self::ICmp(fl, d, s1, s2) => write!(f, "{d:?} = icmp {fl:?} {s1:?}, {s2:?}"),
+            Self::FCmp(fl, d, s1, s2) => write!(f, "{d:?} = fcmp {fl:?} {s1:?}, {s2:?}"),
+            Self::Jmp(b, b_args) => write!(f, "jmp {b:?}({})", b_args.iter().fold(
+                String::new(),
+                |acc, v| if acc.is_empty() {
+                    format!("{v:?}")
+                } else {
+                    format!("{acc}, {v:?}")
+                }
+            )),
+            Self::Brif(c, t, t_args, e, e_args) => write!(f, "brif {c:?}, {t:?}({}), {e:?}({})", t_args.iter().fold(
+                String::new(),
+                |acc, v| if acc.is_empty() {
+                    format!("{v:?}")
+                } else {
+                    format!("{acc}, {v:?}")
+                }
+            ), e_args.iter().fold(
+                String::new(),
+                |acc, v| if acc.is_empty() {
+                    format!("{v:?}")
+                } else {
+                    format!("{acc}, {v:?}")
+                }
+            )),
             Self::MakeTuple(d, srcs) => write!(
                 f, "{d:?} = make_tuple({})",
                 srcs.iter()
@@ -277,10 +324,46 @@ impl<'a> InstBuilder<'a> {
         }
     }
 
+    pub fn jmp(self, b: BlockId, block_args: Vec<ValueId>) {
+        if let Some(block) = self.f.current_block {
+            self.f.blocks[block.0].insts.push(Inst { kind: InstKind::Jmp(b, block_args), span: self.span });
+        } else {
+            panic!("No block selected");
+        }
+    }
+
+    pub fn brif(self, c: ValueId, then_b: BlockId, then_args: Vec<ValueId>, else_b: BlockId, else_args: Vec<ValueId>) {
+        if let Some(block) = self.f.current_block {
+            self.f.blocks[block.0].insts.push(Inst { kind: InstKind::Brif(c, then_b, then_args, else_b, else_args), span: self.span });
+        } else {
+            panic!("No block selected");
+        }
+    }
+
     pub fn make_tuple(self, srcs: Vec<ValueId>) -> Register {
         if let Some(block) = self.f.current_block {
             let reg = self.f.allocate_register();
             self.f.blocks[block.0].insts.push(Inst { kind: InstKind::MakeTuple(reg, srcs), span: self.span });
+            reg
+        } else {
+            panic!("No block selected");
+        }
+    }
+
+    pub fn icmp(self, l: ValueId, r: ValueId, fl: CmpFlag) -> Register {
+        if let Some(block) = self.f.current_block {
+            let reg = self.f.allocate_register();
+            self.f.blocks[block.0].insts.push(Inst { kind: InstKind::ICmp(fl, reg, l, r), span: self.span });
+            reg
+        } else {
+            panic!("No block selected");
+        }
+    }
+
+    pub fn fcmp(self, l: ValueId, r: ValueId, fl: CmpFlag) -> Register {
+        if let Some(block) = self.f.current_block {
+            let reg = self.f.allocate_register();
+            self.f.blocks[block.0].insts.push(Inst { kind: InstKind::FCmp(fl, reg, l, r), span: self.span });
             reg
         } else {
             panic!("No block selected");

@@ -57,7 +57,9 @@ impl ConstantFolder {
                 | InstKind::FMul(_, src1, src2)
                 | InstKind::FDiv(_, src1, src2)
                 | InstKind::FRem(_, src1, src2)
-                | InstKind::FPow(_, src1, src2) => {
+                | InstKind::FPow(_, src1, src2)
+                | InstKind::ICmp(_, _, src1, src2)
+                | InstKind::FCmp(_, _, src1, src2) => {
                     let lhs = match src1 {
                         ValueId::Constant(c) => Some(constants[c.0].inner.clone()),
                         ValueId::Register(s) => self.registers.get(&*s).cloned(),
@@ -127,6 +129,20 @@ impl ConstantFolder {
                                     inst.kind = InstKind::Mov(*d, ValueId::Constant(id));
                                 }
                             },
+                            InstKind::ICmp(fl, d, _, _) => if let (IrValue::Int(lval), IrValue::Int(rval)) = (lhs, rhs) {
+                                let result = match fl {
+                                    CmpFlag::Eq => IrValue::Bool(lval == rval),
+                                    CmpFlag::Ne => IrValue::Bool(lval != rval),
+                                    CmpFlag::Gt => IrValue::Bool(lval > rval),
+                                    CmpFlag::Lt => IrValue::Bool(lval < rval),
+                                    CmpFlag::Ge => IrValue::Bool(lval >= rval),
+                                    CmpFlag::Le => IrValue::Bool(lval <= rval),
+                                };
+                                let id = ConstantId(constants.len());
+                                constants.push(Constant { inner: result.clone(), id });
+                                self.registers.insert(*d, result);
+                                inst.kind = InstKind::Mov(*d, ValueId::Constant(id));
+                            },
                             InstKind::FAdd(d, _, _) => if let (IrValue::Float(lval), IrValue::Float(rval)) = (lhs, rhs) {
                                 let result = IrValue::Float(lval + rval);
                                 let id = ConstantId(constants.len());
@@ -169,8 +185,35 @@ impl ConstantFolder {
                                 self.registers.insert(*d, result);
                                 inst.kind = InstKind::Mov(*d, ValueId::Constant(id));
                             },
+                            InstKind::FCmp(fl, d, _, _) => if let (IrValue::Float(lval), IrValue::Float(rval)) = (lhs, rhs) {
+                                let result = match fl {
+                                    CmpFlag::Eq => IrValue::Bool(lval == rval),
+                                    CmpFlag::Ne => IrValue::Bool(lval != rval),
+                                    CmpFlag::Gt => IrValue::Bool(lval > rval),
+                                    CmpFlag::Lt => IrValue::Bool(lval < rval),
+                                    CmpFlag::Ge => IrValue::Bool(lval >= rval),
+                                    CmpFlag::Le => IrValue::Bool(lval <= rval),
+                                };
+                                let id = ConstantId(constants.len());
+                                constants.push(Constant { inner: result.clone(), id });
+                                self.registers.insert(*d, result);
+                                inst.kind = InstKind::Mov(*d, ValueId::Constant(id));
+                            },
                             _ => unreachable!()
                         };
+                    }
+                },
+                InstKind::Jmp(_b, _b_args) => (),
+                InstKind::Brif(c, t, t_args, e, e_args) => {
+                    let cond = match c {
+                        ValueId::Constant(c) => Some(constants[c.0].inner.clone()),
+                        ValueId::Register(s) => self.registers.get(&*s).cloned(),
+                        ValueId::StackSlot(_) => None
+                    };
+                    if let Some(IrValue::Bool(true)) = cond {
+                        inst.kind = InstKind::Jmp(*t, t_args.clone());
+                    } else if let Some(IrValue::Bool(false)) = cond {
+                        inst.kind = InstKind::Jmp(*e, e_args.clone());
                     }
                 },
                 InstKind::MakeTuple(d, srcs) => {

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use lace_ir::core::module::Module;
 use lace_ir::core::function::{FunctionName, Signature};
-use lace_ir::core::inst::{IrValue, Register, ValueId};
+use lace_ir::core::inst::{IrValue, Register, ValueId, CmpFlag};
 use lace_ir::core::ss::SlotId;
 use lasso::Spur;
 use crate::operator::Op;
@@ -69,10 +69,9 @@ impl IRGenerator {
                     let func = self.module.get_function(&fname).unwrap();
                     let entry_block = func.create_block();
                     func.switch_to_block(entry_block);
-                    func.append_function_params_for_block_params();
                     for (idx, (p_ty, p)) in type_map.get_func(f.id).unwrap().params.iter().zip(f.params.iter()).enumerate() {
                         if !p.mutability {
-                            self.scope.last_mut().unwrap().insert(p.name, Symbol::Arg(func.get_block_param(idx)));
+                            self.scope.last_mut().unwrap().insert(p.name, Symbol::Arg(func.get_function_param(idx)));
                             continue;
                         }
                         let ss = func.create_stack_slot(p_ty.to_ir_type());
@@ -88,9 +87,18 @@ impl IRGenerator {
         }
     }
 
+    pub fn find_ident(&self, n: &Spur) -> Option<&Symbol> {
+        for scope in self.scope.iter().rev() {
+            if let Some(sy) = scope.get(n) {
+                return Some(sy);
+            }
+        }
+        None
+    }
+
     pub fn walk_node(&mut self, node: &Node, type_map: &TypeMap, func: &FunctionName) -> ValueId {
         match &node.kind {
-            NodeKind::Identifier(n) => match *self.scope.last().unwrap().get(n).unwrap() {
+            NodeKind::Identifier(n) => match *self.find_ident(n).unwrap() {
                 Symbol::Variable(s) => ValueId::StackSlot(s),
                 Symbol::Arg(r) => ValueId::Register(r)
             },
@@ -169,6 +177,36 @@ impl IRGenerator {
                     } else {
                         ValueId::Register(ib.fpow(lval, rval))
                     },
+                    Op::Eq => if *type_map.get_node(lhs.id).unwrap() == Type::Int {
+                        ValueId::Register(ib.icmp(lval, rval, CmpFlag::Eq))
+                    } else {
+                        ValueId::Register(ib.fcmp(lval, rval, CmpFlag::Eq))
+                    },
+                    Op::Ne => if *type_map.get_node(lhs.id).unwrap() == Type::Int {
+                        ValueId::Register(ib.icmp(lval, rval, CmpFlag::Ne))
+                    } else {
+                        ValueId::Register(ib.fcmp(lval, rval, CmpFlag::Ne))
+                    },
+                    Op::Gt => if *type_map.get_node(lhs.id).unwrap() == Type::Int {
+                        ValueId::Register(ib.icmp(lval, rval, CmpFlag::Gt))
+                    } else {
+                        ValueId::Register(ib.fcmp(lval, rval, CmpFlag::Gt))
+                    },
+                    Op::Lt => if *type_map.get_node(lhs.id).unwrap() == Type::Int {
+                        ValueId::Register(ib.icmp(lval, rval, CmpFlag::Lt))
+                    } else {
+                        ValueId::Register(ib.fcmp(lval, rval, CmpFlag::Lt))
+                    },
+                    Op::Ge => if *type_map.get_node(lhs.id).unwrap() == Type::Int {
+                        ValueId::Register(ib.icmp(lval, rval, CmpFlag::Ge))
+                    } else {
+                        ValueId::Register(ib.fcmp(lval, rval, CmpFlag::Ge))
+                    },
+                    Op::Le => if *type_map.get_node(lhs.id).unwrap() == Type::Int {
+                        ValueId::Register(ib.icmp(lval, rval, CmpFlag::Le))
+                    } else {
+                        ValueId::Register(ib.fcmp(lval, rval, CmpFlag::Le))
+                    },
                     _ => todo!(),
                 }
             },
@@ -201,7 +239,34 @@ impl IRGenerator {
                 self.scope.last_mut().unwrap().insert(*name, Symbol::Variable(ss));
                 r
             },
-            NodeKind::FunctionDef(_f) => todo!()
+            NodeKind::FunctionDef(_f) => todo!(),
+            NodeKind::If { condition, then_body, else_body } => {
+                let f = self.module.get_function(func).unwrap();
+                let then_b = f.create_block();
+                let else_b = f.create_block();
+                let merge_b = f.create_block();
+                f.append_block_params(merge_b, vec![type_map.get_node(node.id).unwrap().to_ir_type()]);
+
+                let cond_v = self.walk_node(condition, type_map, func);
+                let f = self.module.get_function(func).unwrap();
+                f.ib(node.span).brif(cond_v, then_b, vec![], else_b, vec![]);
+
+                f.switch_to_block(then_b);
+                let then_v = self.walk_node(then_body, type_map, func);
+                let f = self.module.get_function(func).unwrap();
+                f.ib(then_body.span).jmp(merge_b, vec![then_v]);
+
+                f.switch_to_block(else_b);
+                let else_v = match else_body.as_ref().map(|e| self.walk_node(e, type_map, func)) {
+                    Some(v) => v,
+                    None => ValueId::Constant(self.module.get_function(func).unwrap().define_constant(IrValue::Unit)),
+                };
+                let f = self.module.get_function(func).unwrap();
+                f.ib(then_body.span).jmp(merge_b, vec![else_v]);
+                
+                f.switch_to_block(merge_b);
+                ValueId::Register(f.get_block_param(0))
+            },
         }
     }
 }

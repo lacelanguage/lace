@@ -66,6 +66,10 @@ impl Function {
         }
     }
 
+    pub fn get_function_param(&self, idx: usize) -> Register {
+        Register(idx)
+    }
+
     pub fn create_stack_slot(&mut self, slot_ty: Type) -> SlotId {
         let id = SlotId(self.stack_slots.len());
         self.stack_slots.push(StackSlot { id, slot_ty });
@@ -96,28 +100,10 @@ impl Function {
         id
     }
 
-    pub fn append_function_params_for_block_params(&mut self) {
-        if let Some(block) = self.current_block {
-            let mut params = vec![];
-            for (_, ty) in &self.sig.params {
-                let reg = Register(self.next_value_id);
-                self.next_value_id += 1;
-                params.push((reg, ty.clone()));
-            }
-            self.blocks[block.0].params = params;
-        } else {
-            panic!("No block selected");
-        }
-    }
-
-    pub fn append_block_params(&mut self, params: Vec<Type>) {
-        if let Some(block) = self.current_block {
-            self.blocks[block.0].params = params.into_iter().map(|ty| {
-                (self.allocate_register(), ty)
-            }).collect();
-        } else {
-            panic!("No block selected");
-        }
+    pub fn append_block_params(&mut self, id: BlockId, params: Vec<Type>) {
+        self.blocks[id.0].params = params.into_iter().map(|ty| {
+            (self.allocate_register(), ty)
+        }).collect();
     }
 
     pub fn switch_to_block(&mut self, id: BlockId) {

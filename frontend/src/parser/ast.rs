@@ -58,6 +58,11 @@ pub enum NodeKind {
         value: Box<Node>,
     },
     FunctionDef(FunctionDef),
+    If {
+        condition: Box<Node>,
+        then_body: Box<Node>,
+        else_body: Option<Box<Node>>,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

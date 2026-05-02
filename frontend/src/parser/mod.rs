@@ -175,11 +175,14 @@ impl<'a> Parser<'a> {
             let rhs = self.parse_expression(bp)?;
 
             lhs.span.extend(rhs.span);
-            lhs.kind = NodeKind::BinaryOp {
-                lhs: Box::new(lhs.clone()),
-                rhs: Box::new(rhs),
-                op: (op, span)
-            };
+            lhs = self.new_node(
+                NodeKind::BinaryOp {
+                    lhs: Box::new(lhs.clone()),
+                    rhs: Box::new(rhs),
+                    op: (op, span)
+                },
+                lhs.span
+            );
         }
 
         Ok(lhs)
@@ -230,6 +233,7 @@ impl<'a> Parser<'a> {
             TokenKind::LParen => self.parse_paren(),
             TokenKind::LCurly => self.parse_block(),
             TokenKind::KwLet => self.parse_let(),
+            TokenKind::KwIf => self.parse_if(),
             other => Err(Diagnostic::new(
                 Severity::Error,
                 format!("expected expression, found `{}`", other.as_str(self.rodeo)),
@@ -321,6 +325,22 @@ impl<'a> Parser<'a> {
             NodeKind::Let { mutability, name, ty, value: Box::new(value) },
             span
         ))
+    }
+
+    pub fn parse_if(&mut self) -> Result<Node, Diagnostic> {
+        let mut span = self.token_stream.consume(TokenKind::KwIf, self.rodeo)?.span;
+        let condition = Box::new(self.parse_expression(0)?);
+        self.token_stream.consume(TokenKind::KwThen, self.rodeo)?;
+        let then_body = Box::new(self.parse_expression(0)?);
+        span.extend(then_body.span);
+        let else_body = self.token_stream.consume(TokenKind::KwElse, self.rodeo)
+            .ok()
+            .and({ // not map because we need error propagation
+                let body = self.parse_expression(0)?;
+                span.extend(body.span);
+                Some(Box::new(body))
+            });
+        Ok(self.new_node(NodeKind::If { condition, then_body, else_body }, span))
     }
 
     // unused for now

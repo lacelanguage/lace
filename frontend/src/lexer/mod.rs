@@ -270,6 +270,9 @@ pub fn lookup_ident(source: &str, rodeo: &mut Rodeo) -> TokenKind {
         "let" => TokenKind::KwLet,
         "mut" => TokenKind::KwMut,
         "fn" => TokenKind::KwFn,
+        "if" => TokenKind::KwIf,
+        "then" => TokenKind::KwThen,
+        "else" => TokenKind::KwElse,
         _ => TokenKind::Identifier(rodeo.get_or_intern(source)),
     }
 }

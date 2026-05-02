@@ -411,7 +411,59 @@ impl<'a> SemanticsChecker<'a> {
                 self.type_map.assign_node(node.id, final_ty);
                 return Ok(());
             },
-            NodeKind::FunctionDef(_f) => todo!("scoped functions")
+            NodeKind::FunctionDef(_f) => todo!("scoped functions"),
+            NodeKind::If { condition, then_body, else_body } => {
+                self.check_node(condition)?;
+                if *self.type_map.get_node(condition.id).unwrap() != Type::Bool {
+                    errors.push(Diagnostic::new(
+                        Severity::Error,
+                        "expected type `bool` in `if` condition",
+                        condition.span
+                    ));
+                }
+
+                if let Err(err) = self.check_node(then_body) {
+                    errors.extend(err);
+                    return Err(errors);
+                }
+                if *self.type_map.get_node(then_body.id).unwrap() == Type::Unit {
+                    if let Some(e) = else_body.as_ref() {
+                        if let Err(err) = self.check_node(e) {
+                            errors.extend(err);
+                            return Err(errors);
+                        }
+                    }
+                } else {
+                    if let Some(e) = else_body.as_ref() {
+                        if let Err(err) = self.check_node(e) {
+                            errors.extend(err);
+                            return Err(errors);
+                        }
+                        let then_ty = self.type_map.get_node(then_body.id).unwrap();
+                        let else_ty = self.type_map.get_node(e.id).unwrap();
+                        if *then_ty != *else_ty {
+                            errors.push(Diagnostic::new(
+                                Severity::Error,
+                                format!("expected `else` condition with type `{then_ty}`, found `{else_ty}`"),
+                                e.span
+                            ));
+                        }
+                    } else {
+                        let then_ty = self.type_map.get_node(then_body.id).unwrap();
+                        errors.push(Diagnostic::new(
+                            Severity::Error,
+                            format!("expected `else` condition with type `{then_ty}`"),
+                            condition.span
+                        ));
+                    }
+                }
+
+                self.type_map.assign_node(node.id, self.type_map.get_node(then_body.id).unwrap().clone());
+
+                if errors.is_empty() {
+                    return Ok(());
+                }
+            },
         }
 
         Err(errors)

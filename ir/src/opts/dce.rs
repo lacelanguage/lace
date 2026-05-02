@@ -116,7 +116,9 @@ impl DeadCodeElimination {
                 | InstKind::FMul(d, src1, src2)
                 | InstKind::FDiv(d, src1, src2)
                 | InstKind::FRem(d, src1, src2)
-                | InstKind::FPow(d, src1, src2) =>
+                | InstKind::FPow(d, src1, src2)
+                | InstKind::ICmp(_, d, src1, src2)
+                | InstKind::FCmp(_, d, src1, src2) =>
                 {
                     self.defined_registers.insert(*d, (block_idx, idx));
                     match src1 {
@@ -133,6 +135,39 @@ impl DeadCodeElimination {
                 InstKind::MakeTuple(d, srcs) => {
                     self.defined_registers.insert(*d, (block_idx, idx));
                     for s in srcs {
+                        match s {
+                            ValueId::Constant(c) => self.used_constants.insert(*c),
+                            ValueId::Register(s) => self.used_registers.insert(*s),
+                            ValueId::StackSlot(s) => self.used_stack_slots.insert(*s)
+                        };
+                    }
+                },
+                InstKind::Jmp(b, b_args) => {
+                    self.used_blocks.insert(*b);
+                    for s in b_args {
+                        match s {
+                            ValueId::Constant(c) => self.used_constants.insert(*c),
+                            ValueId::Register(s) => self.used_registers.insert(*s),
+                            ValueId::StackSlot(s) => self.used_stack_slots.insert(*s)
+                        };
+                    }
+                },
+                InstKind::Brif(cond, then_b, then_args, else_b, else_args) => {
+                    match cond {
+                        ValueId::Constant(c) => self.used_constants.insert(*c),
+                        ValueId::Register(s) => self.used_registers.insert(*s),
+                        ValueId::StackSlot(s) => self.used_stack_slots.insert(*s)
+                    };
+                    self.used_blocks.insert(*then_b);
+                    for s in then_args {
+                        match s {
+                            ValueId::Constant(c) => self.used_constants.insert(*c),
+                            ValueId::Register(s) => self.used_registers.insert(*s),
+                            ValueId::StackSlot(s) => self.used_stack_slots.insert(*s)
+                        };
+                    }
+                    self.used_blocks.insert(*else_b);
+                    for s in else_args {
                         match s {
                             ValueId::Constant(c) => self.used_constants.insert(*c),
                             ValueId::Register(s) => self.used_registers.insert(*s),
